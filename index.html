@@ -8,33 +8,171 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Load Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- FIREBASE IMPORTS for Database and Authentication -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // IMPORTANT: Global variables provided by the environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        setLogLevel('Debug'); // Enable debug logging for Firebase
+
+        let auth, db, userId;
+
+        /**
+         * Initializes Firebase and signs in the user.
+         */
+        const initializeFirebase = async () => {
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                // Use session persistence to remember sign-in for the session
+                await setPersistence(auth, browserSessionPersistence);
+
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                // Set the userId based on auth state, fall back to random UUID if sign-in fails
+                userId = auth.currentUser?.uid || crypto.randomUUID();
+                console.log("Firebase initialized. User ID:", userId);
+
+            } catch (error) {
+                console.error("Error initializing Firebase:", error);
+                displayMessage("Error: Database connection failed.", 'error');
+            }
+        };
+
+        /**
+         * Handles the contact form submission and saves data to Firestore.
+         * @param {Event} event - The form submission event.
+         */
+        const handleFormSubmit = async (event) => {
+            event.preventDefault();
+            
+            if (!db || !userId) {
+                displayMessage("Database is not ready. Please wait a moment and try again.", 'error');
+                return;
+            }
+
+            const form = document.getElementById('contact-form');
+            const submitButton = form.querySelector('button[type="submit"]');
+
+            submitButton.textContent = 'Saving Inquiry...';
+            submitButton.disabled = true;
+
+            try {
+                const formData = {
+                    name: form.name.value,
+                    email: form.email.value,
+                    service: form.service.value,
+                    message: form.message.value,
+                    timestamp: new Date(),
+                    // Storing under the user's private collection
+                    submitterId: userId
+                };
+
+                // Path: /artifacts/{appId}/users/{userId}/contact_submissions
+                const docRef = collection(db, `artifacts/${appId}/users/${userId}/contact_submissions`);
+
+                await addDoc(docRef, formData);
+
+                displayMessage("Success! Your inquiry has been saved and I will be in touch shortly.", 'success');
+                form.reset();
+
+            } catch (e) {
+                console.error("Error saving document: ", e);
+                displayMessage("Submission failed. Please check your connection and try again.", 'error');
+            } finally {
+                submitButton.textContent = 'Send Message';
+                submitButton.disabled = false;
+            }
+        };
+
+        /**
+         * Displays a temporary success or error message to the user.
+         * @param {string} message - The message text.
+         * @param {('success'|'error')} type - The message type.
+         */
+        const displayMessage = (message, type) => {
+            const messageContainer = document.getElementById('form-message');
+            // Using refined colors for messages
+            const colorClass = type === 'success' ? 'bg-fit-accent text-gray-900' : 'bg-red-600 text-white';
+            messageContainer.innerHTML = `<div class="p-3 rounded-lg mt-4 font-semibold text-center ${colorClass}">${message}</div>`;
+            
+            setTimeout(() => {
+                messageContainer.innerHTML = '';
+            }, 7000); // Display for 7 seconds
+        };
+
+
+        // Setup event listeners after DOM loads
+        window.addEventListener('load', () => {
+            // Mobile Menu Toggle Logic
+            const menuButton = document.getElementById('menu-button');
+            const mobileMenu = document.getElementById('mobile-menu');
+
+            menuButton.addEventListener('click', () => {
+                mobileMenu.classList.toggle('hidden');
+            });
+
+            // Close menu when a link is clicked
+            mobileMenu.querySelectorAll('a').forEach(link => {
+                link.addEventListener('click', () => {
+                    mobileMenu.classList.add('hidden');
+                });
+            });
+
+            // Initialize Firebase and attach form listener
+            initializeFirebase();
+            const contactForm = document.getElementById('contact-form');
+            if (contactForm) {
+                contactForm.addEventListener('submit', handleFormSubmit);
+            }
+            lucide.createIcons();
+        });
+    </script>
+
     <style>
         /* Custom styles for professional look and feel */
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #0d0d0d; /* Very dark background */
+            background-color: #1A1A1A; /* Deep Charcoal Black (ELITE) */
             color: #f3f4f6; /* Light text */
         }
         .accent-color {
-            color: #00ffc8; /* Bright cyan/green accent */
+            color: #B8860B; /* Dark Goldenrod / Muted Gold/Bronze */
         }
         .accent-bg {
-            background-color: #00ffc8;
+            background-color: #B8860B;
         }
         .hero-bg {
             /* Placeholder for a dynamic, professional image */
-            background-image: url('https://placehold.co/1200x800/1f2937/00ffc8?text=DYNAMIC+TRAINER+IMAGE');
+            /* Adjusted placeholder to match the muted aesthetic */
+            background-image: url('https://placehold.co/1200x800/1A1A1A/B8860B?text=FITNESS+PROFESSIONAL+SHOT'); 
             background-size: cover;
             background-position: center;
         }
     </style>
     <script>
+        // Tailwind Configuration with new color palette
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        'fit-accent': '#00ffc8',
-                        'fit-dark': '#0d0d0d',
+                        'fit-accent': '#B8860B', // Muted Gold/Bronze
+                        'fit-dark': '#1A1A1A', // Deep Charcoal
+                        'zinc-900-light': '#262626', // For cards/containers
+                        'zinc-800-light': '#3F3F46', // For input fields
                     }
                 }
             }
@@ -44,7 +182,7 @@
 <body class="antialiased">
 
     <!-- Navigation Bar -->
-    <header class="sticky top-0 z-50 bg-fit-dark/95 backdrop-blur-sm shadow-lg border-b border-gray-800">
+    <header class="sticky top-0 z-50 bg-fit-dark/95 backdrop-blur-sm shadow-lg border-b border-gray-700">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center h-16">
                 <!-- Logo/Name -->
@@ -55,6 +193,7 @@
                     <a href="#about" class="hover:text-fit-accent transition duration-200">About</a>
                     <a href="#services" class="hover:text-fit-accent transition duration-200">Services</a>
                     <a href="#testimonials" class="hover:text-fit-accent transition duration-200">Testimonials</a>
+                    <a href="#video-presentation" class="hover:text-fit-accent transition duration-200">Video</a>
                     <a href="#contact" class="hover:text-fit-accent transition duration-200">Contact</a>
                 </nav>
 
@@ -66,11 +205,12 @@
         </div>
 
         <!-- Mobile Menu (Hidden by default) -->
-        <div id="mobile-menu" class="hidden md:hidden bg-fit-dark border-t border-gray-800">
+        <div id="mobile-menu" class="hidden md:hidden bg-fit-dark border-t border-gray-700">
             <nav class="px-2 pt-2 pb-3 space-y-1 sm:px-3 flex flex-col">
                 <a href="#about" class="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-700 transition duration-150">About</a>
                 <a href="#services" class="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-700 transition duration-150">Services</a>
                 <a href="#testimonials" class="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-700 transition duration-150">Testimonials</a>
+                <a href="#video-presentation" class="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-700 transition duration-150">Video</a>
                 <a href="#contact" class="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-700 transition duration-150">Contact</a>
             </nav>
         </div>
@@ -78,10 +218,10 @@
 
     <main>
         <!-- 1. Hero Section -->
-        <section id="hero" class="hero-bg py-24 md:py-40 bg-gray-900 bg-blend-multiply bg-opacity-70 text-center flex items-center justify-center">
-            <div class="max-w-4xl mx-auto p-6 bg-fit-dark/80 rounded-xl shadow-2xl border border-gray-800">
+        <section id="hero" class="hero-bg py-24 md:py-40 bg-gray-900 bg-blend-multiply bg-opacity-80 text-center flex items-center justify-center">
+            <div class="max-w-4xl mx-auto p-6 bg-fit-dark/80 rounded-xl shadow-2xl border border-gray-700">
                 <h1 class="text-4xl sm:text-6xl font-extrabold tracking-tight leading-tight mb-4">
-                    <span class="accent-color">Unlock Your Full Potential</span> with Elite Personal Coaching
+                    <span class="accent-color">Forge Your Future:</span> Elite Personal Coaching
                 </h1>
                 <p class="text-xl sm:text-2xl text-gray-300 mb-8 font-light">
                     Customized training plans, expert nutritional guidance, and 24/7 accountability.
@@ -93,12 +233,12 @@
         </section>
 
         <!-- 2. About Me Section -->
-        <section id="about" class="py-16 sm:py-24 bg-gray-900">
+        <section id="about" class="py-16 sm:py-24 bg-fit-dark">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <h2 class="text-4xl font-bold text-center mb-12 accent-color">My Philosophy: Sustainable Transformation</h2>
                 <div class="md:grid md:grid-cols-2 gap-12 items-center">
                     <div class="mb-8 md:mb-0">
-                        <img src="https://placehold.co/600x400/1f2937/00ffc8?text=PROFESSIONAL+HEADSHOT" alt="Trainer Profile Picture" class="rounded-xl shadow-xl w-full">
+                        <img src="https://placehold.co/600x400/1e40af/B8860B?text=PROFESSIONAL+HEADSHOT" alt="Trainer Profile Picture" class="rounded-xl shadow-xl w-full border-4 border-gray-800">
                     </div>
                     <div class="text-gray-300 space-y-6 text-lg">
                         <p>
@@ -108,14 +248,40 @@
                             My approach is highly personalized, blending strength training, functional movement, and mindful nutrition. Whether you're a beginner or an experienced athlete, my mission is to provide the structure, accountability, and expertise you need to exceed your goals safely and efficiently.
                         </p>
                         <a href="#services" class="inline-flex items-center text-fit-accent font-semibold hover:text-white transition duration-200">
-                            See My Certifications <i data-lucide="arrow-right" class="w-4 h-4 ml-2"></i>
+                            View Available Services <i data-lucide="arrow-right" class="w-4 h-4 ml-2"></i>
                         </a>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- 3. Services Section -->
+        <!-- 3. Video Presentation Section (NEW) -->
+        <section id="video-presentation" class="py-16 sm:py-24 bg-zinc-900-light border-t border-b border-gray-800">
+            <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                <h2 class="text-4xl font-bold mb-12 text-white">Watch My Philosophy in Action</h2>
+                <p class="text-xl text-gray-400 mb-8 max-w-3xl mx-auto">Get a deeper look at the coaching style and training environment I provide. This is where your transformation begins.</p>
+                
+                <div class="relative overflow-hidden w-full rounded-xl shadow-2xl" style="padding-top: 56.25%;"> <!-- 16:9 Aspect Ratio -->
+                    <!-- Placeholder YouTube Embed. Replace 'YOUR_VIDEO_ID' with the actual YouTube ID. -->
+                    <iframe 
+                        class="absolute top-0 left-0 w-full h-full border-4 border-fit-accent rounded-xl" 
+                        src="https://www.youtube.com/embed/YOUR_VIDEO_ID?rel=0&amp;autoplay=0&amp;mute=0" 
+                        title="Fitness Trainer Service Introduction" 
+                        frameborder="0" 
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                        allowfullscreen>
+                    </iframe>
+                </div>
+
+                <div class="mt-8">
+                    <a href="https://youtube.com/YOUR_CHANNEL_LINK" target="_blank" class="inline-flex items-center text-fit-accent font-semibold hover:text-white transition duration-200">
+                        Subscribe to my Channel <i data-lucide="youtube" class="w-5 h-5 ml-2"></i>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. Services Section (Updated Colors) -->
         <section id="services" class="py-16 sm:py-24 bg-fit-dark border-t border-gray-800">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <h2 class="text-4xl font-bold text-center mb-16 text-white">Choose Your Training Path</h2>
@@ -123,7 +289,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
 
                     <!-- Service Card 1 -->
-                    <div class="bg-gray-900 p-8 rounded-xl shadow-2xl border border-gray-700 transform hover:scale-[1.02] transition duration-300">
+                    <div class="bg-zinc-900-light p-8 rounded-xl shadow-2xl border border-gray-700 transform hover:scale-[1.02] transition duration-300">
                         <i data-lucide="dumbbell" class="w-10 h-10 accent-color mb-4"></i>
                         <h3 class="text-2xl font-bold mb-3 text-white">1:1 In-Person Training</h3>
                         <p class="text-gray-400 mb-6">Dedicated, hands-on coaching sessions at our private studio. Perfect for maximizing technique and intensity.</p>
@@ -137,7 +303,7 @@
                     </div>
 
                     <!-- Service Card 2 (Highlight) -->
-                    <div class="bg-gray-900 p-8 rounded-xl shadow-2xl border-4 border-fit-accent transform scale-100 transition duration-300">
+                    <div class="bg-zinc-900-light p-8 rounded-xl shadow-2xl border-4 border-fit-accent transform scale-100 transition duration-300">
                         <div class="text-center">
                             <i data-lucide="globe" class="w-10 h-10 accent-color mb-4"></i>
                             <h3 class="text-2xl font-bold mb-3 text-white">Online Coaching (Premium)</h3>
@@ -153,7 +319,7 @@
                     </div>
 
                     <!-- Service Card 3 -->
-                    <div class="bg-gray-900 p-8 rounded-xl shadow-2xl border border-gray-700 transform hover:scale-[1.02] transition duration-300">
+                    <div class="bg-zinc-900-light p-8 rounded-xl shadow-2xl border border-gray-700 transform hover:scale-[1.02] transition duration-300">
                         <i data-lucide="knife" class="w-10 h-10 accent-color mb-4"></i>
                         <h3 class="text-2xl font-bold mb-3 text-white">Nutrition Guidance</h3>
                         <p class="text-gray-400 mb-6">Standalone guidance focusing on fueling your body for performance and optimal health.</p>
@@ -169,28 +335,28 @@
             </div>
         </section>
 
-        <!-- 4. Testimonials Section -->
-        <section id="testimonials" class="py-16 sm:py-24 bg-gray-900 border-t border-gray-800">
+        <!-- 5. Testimonials Section -->
+        <section id="testimonials" class="py-16 sm:py-24 bg-zinc-900-light border-t border-gray-800">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <h2 class="text-4xl font-bold text-center mb-16 accent-color">Success Stories</h2>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                     
                     <!-- Testimonial 1 -->
-                    <div class="bg-gray-800 p-6 rounded-xl shadow-xl border-l-4 border-fit-accent">
+                    <div class="bg-zinc-800-light p-6 rounded-xl shadow-xl border-l-4 border-fit-accent">
                         <i data-lucide="quote" class="w-8 h-8 accent-color mb-4 opacity-50"></i>
                         <p class="text-xl italic text-gray-200 mb-4">"I lost 45 pounds and have more energy than I did in my 20s. Alex's guidance was strategic and kept me motivated every single day."</p>
                         <p class="font-semibold text-white">- Sarah K., Online Client</p>
                     </div>
 
                     <!-- Testimonial 2 -->
-                    <div class="bg-gray-800 p-6 rounded-xl shadow-xl border-l-4 border-fit-accent">
+                    <div class="bg-zinc-800-light p-6 rounded-xl shadow-xl border-l-4 border-fit-accent">
                         <i data-lucide="quote" class="w-8 h-8 accent-color mb-4 opacity-50"></i>
                         <p class="text-xl italic text-gray-200 mb-4">"My strength numbers doubled in six months! The attention to form and progressive overload was a game-changer for my lifting."</p>
                         <p class="font-semibold text-white">- Mike T., In-Person</p>
                     </div>
 
                     <!-- Testimonial 3 -->
-                    <div class="bg-gray-800 p-6 rounded-xl shadow-xl border-l-4 border-fit-accent">
+                    <div class="bg-zinc-800-light p-6 rounded-xl shadow-xl border-l-4 border-fit-accent">
                         <i data-lucide="quote" class="w-8 h-8 accent-color mb-4 opacity-50"></i>
                         <p class="text-xl italic text-gray-200 mb-4">"The nutrition planning was so simple and effective. I finally understand how to eat for performance without feeling restricted."</p>
                         <p class="font-semibold text-white">- Jessica L., Nutrition Focus</p>
@@ -199,33 +365,36 @@
             </div>
         </section>
 
-        <!-- 5. Contact Section -->
+        <!-- 6. Contact Section (Working Form) -->
         <section id="contact" class="py-16 sm:py-24 bg-fit-dark border-t border-gray-800">
             <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
                 <h2 class="text-4xl font-bold text-center mb-12 text-white">Ready to Start? Get in Touch.</h2>
 
-                <div class="bg-gray-900 p-8 md:p-12 rounded-xl shadow-2xl border border-gray-800">
-                    <form action="#" method="POST" class="space-y-6">
+                <div class="bg-zinc-900-light p-8 md:p-12 rounded-xl shadow-2xl border border-gray-800">
+                    <form id="contact-form" class="space-y-6">
+                        <!-- Message container for success/error feedback -->
+                        <div id="form-message" role="alert"></div>
+
                         <div>
                             <label for="name" class="block text-sm font-medium text-gray-300">Full Name</label>
-                            <input type="text" id="name" name="name" required class="mt-1 block w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white focus:ring-fit-accent focus:border-fit-accent transition duration-150">
+                            <input type="text" id="name" name="name" required class="mt-1 block w-full px-4 py-3 bg-zinc-800-light border border-gray-700 rounded-lg text-white focus:ring-fit-accent focus:border-fit-accent transition duration-150">
                         </div>
                         <div>
                             <label for="email" class="block text-sm font-medium text-gray-300">Email Address</label>
-                            <input type="email" id="email" name="email" required class="mt-1 block w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white focus:ring-fit-accent focus:border-fit-accent transition duration-150">
+                            <input type="email" id="email" name="email" required class="mt-1 block w-full px-4 py-3 bg-zinc-800-light border border-gray-700 rounded-lg text-white focus:ring-fit-accent focus:border-fit-accent transition duration-150">
                         </div>
                         <div>
                             <label for="service" class="block text-sm font-medium text-gray-300">Interested Service</label>
-                            <select id="service" name="service" required class="mt-1 block w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white focus:ring-fit-accent focus:border-fit-accent transition duration-150">
-                                <option value="" class="bg-gray-800 text-gray-400">Select an option...</option>
-                                <option value="1on1" class="bg-gray-800">1:1 In-Person Training</option>
-                                <option value="online" class="bg-gray-800">Online Coaching</option>
-                                <option value="nutrition" class="bg-gray-800">Nutrition Guidance</option>
+                            <select id="service" name="service" required class="mt-1 block w-full px-4 py-3 bg-zinc-800-light border border-gray-700 rounded-lg text-white focus:ring-fit-accent focus:border-fit-accent transition duration-150">
+                                <option value="" class="bg-zinc-800-light text-gray-400">Select an option...</option>
+                                <option value="1on1" class="bg-zinc-800-light">1:1 In-Person Training</option>
+                                <option value="online" class="bg-zinc-800-light">Online Coaching</option>
+                                <option value="nutrition" class="bg-zinc-800-light">Nutrition Guidance</option>
                             </select>
                         </div>
                         <div>
                             <label for="message" class="block text-sm font-medium text-gray-300">Your Message / Goal</label>
-                            <textarea id="message" name="message" rows="4" required class="mt-1 block w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white focus:ring-fit-accent focus:border-fit-accent transition duration-150"></textarea>
+                            <textarea id="message" name="message" rows="4" required class="mt-1 block w-full px-4 py-3 bg-zinc-800-light border border-gray-700 rounded-lg text-white focus:ring-fit-accent focus:border-fit-accent transition duration-150"></textarea>
                         </div>
                         <button type="submit" class="w-full py-3 px-4 border border-transparent rounded-lg shadow-sm text-lg font-bold text-gray-900 accent-bg hover:opacity-90 transition duration-200 transform hover:scale-[1.01]">
                             Send Message
@@ -244,7 +413,7 @@
     </main>
 
     <!-- Footer -->
-    <footer class="bg-gray-900 border-t border-gray-800 py-8">
+    <footer class="bg-zinc-900-light border-t border-gray-800 py-8">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <div class="flex justify-center space-x-6 mb-4">
                 <a href="#" class="text-gray-400 hover:text-fit-accent transition duration-200" aria-label="Instagram"><i data-lucide="instagram" class="w-6 h-6"></i></a>
@@ -254,26 +423,5 @@
             <p class="text-sm text-gray-500">&copy; 2024 FIT PRO Coaching. All rights reserved. | Designed by Gemini.</p>
         </div>
     </footer>
-
-    <!-- JavaScript for Mobile Menu Toggle and Icon Rendering -->
-    <script>
-        // Lucide Icons rendering
-        lucide.createIcons();
-
-        // Mobile Menu Toggle Logic
-        const menuButton = document.getElementById('menu-button');
-        const mobileMenu = document.getElementById('mobile-menu');
-
-        menuButton.addEventListener('click', () => {
-            mobileMenu.classList.toggle('hidden');
-        });
-
-        // Close menu when a link is clicked
-        mobileMenu.querySelectorAll('a').forEach(link => {
-            link.addEventListener('click', () => {
-                mobileMenu.classList.add('hidden');
-            });
-        });
-    </script>
 </body>
 </html>
