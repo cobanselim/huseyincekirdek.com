@@ -12,15 +12,30 @@
     <!-- FIREBASE IMPORTS for Database and Authentication -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // IMPORTANT: Global variables provided by the environment
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
+        // =================================================================
+        // **EDITED**: Your actual Firebase project config has been inserted here.
+        // This configuration is used to connect to your database.
+        // =================================================================
+        const LIVE_FIREBASE_CONFIG = {
+            apiKey: "AIzaSyDv1TBm3wLT9PbN5sIOSHZGVwx72a_A558", 
+            authDomain: "huseyincekirdekcom.firebaseapp.com",
+            projectId: "huseyincekirdekcom",
+            storageBucket: "huseyincekirdekcom.firebasestorage.app",
+            messagingSenderId: "375150126174",
+            appId: "1:375150126174:web:6d1548e1a2fd4545c600cf",
+            measurementId: "G-NL3N3QEE1Y" // Added for complete configuration
+        };
+        // =================================================================
+        
         setLogLevel('Debug'); // Enable debug logging for Firebase
+
+        // We use the LIVE_FIREBASE_CONFIG for both the app config and the Firestore pathing (via appId)
+        const appId = LIVE_FIREBASE_CONFIG.appId || 'default-app-id';
+        const firebaseConfig = LIVE_FIREBASE_CONFIG;
+        const initialAuthToken = null; // Custom token is not available outside this environment
 
         let auth, db, userId;
 
@@ -28,7 +43,15 @@
          * Initializes Firebase and signs in the user.
          */
         const initializeFirebase = async () => {
+            // CRITICAL CHECK: Ensure the user has replaced the placeholder config
+            if (LIVE_FIREBASE_CONFIG.apiKey === "YOUR_API_KEY") {
+                 displayMessage("HATA: Firebase bağlantısı kurulamadı. Lütfen kodu düzenleyerek API anahtarlarınızı girin.", 'error');
+                 console.error("Firebase Configuration Error: API key is still the placeholder. User must replace it in LIVE_FIREBASE_CONFIG.");
+                 return; 
+            }
+            
             try {
+                // Initialize the app with the provided live config
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
@@ -36,11 +59,8 @@
                 // Use session persistence to remember sign-in for the session
                 await setPersistence(auth, browserSessionPersistence);
 
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth);
-                }
+                // Since we are external, we sign in anonymously to allow form submission (Firestore Write Rule requires authentication)
+                await signInAnonymously(auth);
 
                 // Set the userId based on auth state, fall back to random UUID if sign-in fails
                 userId = auth.currentUser?.uid || crypto.randomUUID();
@@ -48,7 +68,15 @@
 
             } catch (error) {
                 console.error("Error initializing Firebase:", error);
-                displayMessage("Error: Database connection failed.", 'error');
+                // Check if the error is due to authentication/permissions (which often happens if the project is not set up correctly)
+                if (error.code === 'auth/operation-not-allowed') {
+                    displayMessage("HATA: Anonim Kimlik Doğrulama Firebase Konsolu'nda etkinleştirilmemiş.", 'error');
+                } else if (error.code === 'auth/api-key-not-valid') {
+                     // Although we fixed it, catching it here again for robustness
+                    displayMessage("HATA: API Anahtarı hala geçersiz. Lütfen anahtarınızı kontrol edin.", 'error');
+                } else {
+                    displayMessage("Hata: Veritabanı başlatılırken bir sorun oluştu. Konsolu kontrol edin.", 'error');
+                }
             }
         };
 
@@ -91,7 +119,12 @@
 
             } catch (e) {
                 console.error("Error saving document: ", e);
-                displayMessage("Submission failed. Please check your connection and try again.", 'error');
+                // Catch common permission error
+                if (e.code === 'permission-denied') {
+                    displayMessage("GÖNDERİM HATASI: İzin Reddedildi. Firestore Güvenlik Kurallarınızı kontrol edin.", 'error');
+                } else {
+                    displayMessage("Submission failed. Please check your connection and ensure your Firestore rules allow anonymous writes.", 'error');
+                }
             } finally {
                 submitButton.textContent = 'Send Message';
                 submitButton.disabled = false;
